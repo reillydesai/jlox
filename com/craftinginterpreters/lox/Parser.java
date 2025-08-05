@@ -1,0 +1,190 @@
+package com.craftinginterpreters.lox;
+
+import java.util.List;
+
+import static com.craftinginterpreters.lox.TokenType.*;
+
+class Parser {
+    private static class ParseError extends RuntimeException {}
+
+    private final List<Token> tokens;
+    private int current = 0;
+
+    Parser(List<Token> tokens) {
+        this.tokens = tokens;
+    }
+
+    // Begin parsing!
+    Expr parse() {
+        try {
+            return expression();
+        } catch (ParseError error) {
+            return null;
+        }
+    }
+
+    private Expr expression() {
+        return equality();
+    }
+
+    private Expr equality() {
+        Expr expr = comparison();
+
+        while (match(BANG_EQUAL, EQUAL_EQUAL)) {
+            Token operator = previous();
+            Expr right = comparison();
+            expr = new Expr.Binary(expr, operator, right);
+        }
+
+        return expr;
+    }
+
+    private Expr comparison() {
+        Expr expr = term();
+
+        while (match(GREATER, GREATER_EQUAL, LESS, LESS_EQUAL)) {
+            Token operator = previous();
+            Expr right = term();
+            expr = new Expr.Binary(expr, operator, right);
+        }
+
+        return expr;
+    }
+
+    private Expr term() {
+        Expr expr = factor();
+
+        while (match(MINUS, PLUS)) {
+            Token operator = previous();
+            Expr right = factor();
+            expr = new Expr.Binary(expr, operator, right);
+        }
+
+        return expr;
+    }
+
+    private Expr factor() {
+        Expr expr = unary();
+
+        while (match(SLASH, STAR)) {
+            Token operator = previous();
+            Expr right = unary();
+            expr = new Expr.Binary(expr, operator, right);
+        }
+
+        return expr;
+    }
+
+    private Expr unary() {
+        if (match(BANG, MINUS)) {
+            Token operator = previous();
+            Expr right = unary();
+            return new Expr.Unary(operator, right);
+        }
+
+        return primary();
+    }
+
+    private Expr primary() {
+        if (match(FALSE)) return new Expr.Literal(false);
+        if (match(TRUE)) return new Expr.Literal(true);
+        if (match(NIL)) return new Expr.Literal(null);
+
+        if (match(NUMBER, STRING)) {
+            return new Expr.Literal(previous().literal);
+        }
+
+        // Give error if we don't find a closing parenthesis
+        if (match(LEFT_PAREN)) {
+            Expr expr = expression();
+            consume(RIGHT_PAREN, "Expect ')' after expression.");
+            return new Expr.Grouping(expr);
+        }
+
+        // We're on a token that can't start an expression, even though we are expecting an expression.
+        throw error(peek(), "Expect expression.");
+    }
+
+    // Parsing Infrastructure 
+
+    // if the current token has any of the given types, consume it and return true. otherwise, do not consume and return false
+    private boolean match(TokenType... types) {
+        for (TokenType type : types) {
+            if (check(type)) {
+                advance();
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // consume the current token if it is of the given type, otherwise throw an error with the given message
+    private Token consume(TokenType type, String message) {
+        if (check(type)) return advance();
+
+        throw error(peek(), message);
+    }
+
+    // return true if token is of given type
+    private boolean check(TokenType type) {
+        if (isAtEnd()) return false;
+        return peek().type == type;
+    }
+
+    // consume the current token and return it
+    private Token advance() {
+        if (!isAtEnd()) current++;
+        return previous();
+    }
+
+    // return if at the end of the tokens list
+    private boolean isAtEnd() {
+        return peek().type == EOF;
+    }
+
+    // return the current token without consuming it
+    private Token peek() {
+        return tokens.get(current);
+    }
+
+    // return the most recently consumed token
+    // makes it easier to match() then use that matched token
+    private Token previous() {
+        return tokens.get(current - 1);
+    }
+
+    // return an error with the given token and message
+    private ParseError error(Token token, String message) {
+        Lox.error(token, message);
+        return new ParseError();
+    }
+
+
+    // Synchronization: skip tokens until we reach a point where we can continue parsing
+    private void synchronize() {
+        advance();
+
+        while (!isAtEnd()) {
+            // good faith guess that we are at the end of a statement/line
+            if (previous().type == SEMICOLON) return;
+
+            // good faith guess that we are at the beginning of a statement/line
+            switch (peek().type) {
+                case CLASS:
+                case FUN:
+                case VAR:
+                case FOR:
+                case IF:
+                case WHILE:
+                case PRINT:
+                case RETURN:
+                return;
+            }
+
+            advance();
+        }
+    }
+    
+
+}
