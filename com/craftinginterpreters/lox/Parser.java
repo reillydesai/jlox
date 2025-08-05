@@ -25,6 +25,33 @@ class Parser {
         return statements; 
     }
 
+    // Parse REPL input, which can be a single statement or an expression
+    List<Stmt> parseREPL() {
+        List<Stmt> statements = new ArrayList<>();
+
+        TokenType first = peek().type;
+
+        // Decide based on first token
+        if (first == VAR || first == FUN || first == CLASS) {
+            // Declaration or statement
+            statements.add(declaration());
+        } else if (first == PRINT || first == LEFT_BRACE || first == IF || first == WHILE || first == FOR || first == RETURN) {
+            // Statement types
+            statements.add(statement());
+        } else {
+            // Otherwise, parse as expression statement (no semicolon needed)
+            Expr expr = expression();
+            statements.add(new Stmt.Expression(expr));
+        }
+
+        return statements;
+    }
+
+
+
+
+
+
     private Expr expression() {
         return assignment();
     }
@@ -42,6 +69,7 @@ class Parser {
 
     private Stmt statement() {
         if (match(PRINT)) return printStatement();
+        if (match(LEFT_BRACE)) return new Stmt.Block(block());
 
         return expressionStatement();
     }
@@ -57,6 +85,19 @@ class Parser {
         consume(SEMICOLON, "Expect ';' after expression.");
         return new Stmt.Expression(expr);
     }
+
+    // add statements to the list/block until end of block `}` or EoF
+    private List<Stmt> block() {
+        List<Stmt> statements = new ArrayList<>();
+
+        while (!check(RIGHT_BRACE) && !isAtEnd()) {
+            statements.add(declaration());
+        }
+
+        consume(RIGHT_BRACE, "Expect '}' after block.");
+        return statements;
+    }
+
 
     private Expr assignment() {
         Expr expr = equality();

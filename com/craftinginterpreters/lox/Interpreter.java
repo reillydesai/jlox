@@ -10,8 +10,15 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     // Run the interpreter!
     void interpret(List<Stmt> statements) {
         try {
-            for (Stmt statement : statements) {
-                execute(statement);
+            // Handle single expression in REPL by evaluating and printing it
+            if (statements.size() == 1 && statements.get(0) instanceof Stmt.Expression) {
+                Expr expression = ((Stmt.Expression) statements.get(0)).expression;
+                Object value = evaluate(expression);
+                System.out.println(stringify(value));
+            } else {
+                for (Stmt statement : statements) {
+                    execute(statement);
+                }
             }
         } catch (RuntimeError error) {
             Lox.runtimeError(error);
@@ -103,6 +110,27 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     private void execute(Stmt stmt) {
         stmt.accept(this);
+    }
+
+    // execute statements in a particular environment then restores the previous environment
+    void executeBlock(List<Stmt> statements, Environment environment) {
+        Environment previous = this.environment;
+        try {
+            this.environment = environment;
+
+            for (Stmt statement : statements) {
+                execute(statement);
+            }
+        } finally {
+            this.environment = previous;
+        }
+    }
+
+    // Create new environment for block scope
+    @Override
+    public Void visitBlockStmt(Stmt.Block stmt) {
+        executeBlock(stmt.statements, new Environment(environment));
+        return null;
     }
 
     @Override
