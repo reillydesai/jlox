@@ -53,7 +53,7 @@ public class Lox {
         List<Token> tokens = scanner.scanTokens();
 
         Parser parser = new Parser(tokens);
-        Expr expression = parser.parse();
+        List<Stmt> statements = parser.parse();
 
         // Stop if there was a syntax error.
         if (hadError) return;
@@ -63,7 +63,7 @@ public class Lox {
          * */
 
         // Run the interpreter on the parsed expression.
-        interpreter.interpret(expression);
+        interpreter.interpret(statements);
     }
 
     // Indicates an error has occurred.

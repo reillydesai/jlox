@@ -1,14 +1,18 @@
 package com.craftinginterpreters.lox;
 
-class Interpreter implements Expr.Visitor<Object> {
+import java.util.List;
+
+class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
+
+    private Environment environment = new Environment();
+
 
     // Run the interpreter!
-    void interpret(Expr expression) { 
+    void interpret(List<Stmt> statements) {
         try {
-            Object value = evaluate(expression);
-
-            // Show the result of the evaluation to the user!
-            System.out.println(stringify(value));
+            for (Stmt statement : statements) {
+                execute(statement);
+            }
         } catch (RuntimeError error) {
             Lox.runtimeError(error);
         }
@@ -52,6 +56,12 @@ class Interpreter implements Expr.Visitor<Object> {
         throw new RuntimeError(operator, "Operand must be a number.");
     }
 
+    // Variable expressions look up the variable in the environment
+    @Override
+    public Object visitVariableExpr(Expr.Variable expr) {
+        return environment.get(expr.name);
+    }
+
 
 
     // 'false' and 'nil' are falsey, everything else is truthy in Lox
@@ -89,6 +99,43 @@ class Interpreter implements Expr.Visitor<Object> {
     // Triggers the evaluation of an expression
     private Object evaluate(Expr expr) {
         return expr.accept(this);
+    }
+
+    private void execute(Stmt stmt) {
+        stmt.accept(this);
+    }
+
+    @Override
+    public Void visitExpressionStmt(Stmt.Expression stmt) {
+        evaluate(stmt.expression);
+        return null;
+    }
+
+    // for print statements, evaluate the expression and print the result
+    @Override
+    public Void visitPrintStmt(Stmt.Print stmt) {
+        Object value = evaluate(stmt.expression);
+        System.out.println(stringify(value));
+        return null;
+    }
+
+    @Override
+    public Void visitVarStmt(Stmt.Var stmt) {
+        // Variables are null unless we initialize them
+        Object value = null;
+        if (stmt.initializer != null) {
+            value = evaluate(stmt.initializer);
+        }
+
+        environment.define(stmt.name.lexeme, value);
+        return null;
+    }
+
+    @Override
+    public Object visitAssignExpr(Expr.Assign expr) {
+        Object value = evaluate(expr.value);
+        environment.assign(expr.name, value);
+        return value;
     }
 
 
@@ -129,11 +176,11 @@ class Interpreter implements Expr.Visitor<Object> {
                 if (left instanceof String || right instanceof String) {
                     return stringify(left) + stringify(right);
                 }
-                throw new RuntimeError(expr.operator, "Operands must be two numbers, two strings, or one number and one string.");
+                throw new RuntimeError(expr.operator, "Operands must be two numbers, two strings, or one number and one string. \n\t Left Operand: " + stringify(left) + "\tRight Operand: " + stringify(right));
             case SLASH:
                 checkNumberOperands(expr.operator, left, right);
                 if ((double)right == 0) {
-                    throw new RuntimeError(expr.operator, "Division by zero → undefined quotient.");
+                    throw new RuntimeError(expr.operator, "Division by zero, undefined quotient.");
                 }
                 return (double)left / (double)right;
             case STAR:
