@@ -10,8 +10,10 @@ import java.util.List;
 
 public class Lox {
 
+    private static final Interpreter interpreter = new Interpreter();
     // Use this to avoid executing code with a known error
     static boolean hadError = false;
+    static boolean hadRuntimeError = false;
 
 
     public static void main(String[] args) throws IOException {
@@ -30,6 +32,7 @@ public class Lox {
         
         // Indicate an error in the exit code.
         if (hadError) System.exit(65);
+        if (hadRuntimeError) System.exit(70);
     }
     
     private static void runPrompt() throws IOException {
@@ -55,12 +58,23 @@ public class Lox {
         // Stop if there was a syntax error.
         if (hadError) return;
 
-        System.out.println(new AstPrinter().print(expression));
+        /** Print out syntax tree:
+         * System.out.println(new AstPrinter().print(expression));
+         * */
+
+        // Run the interpreter on the parsed expression.
+        interpreter.interpret(expression);
     }
 
     // Indicates an error has occurred.
     static void error(int line, String message) {
         report(line, "", message);
+    }
+
+    // Print runtime error
+    static void runtimeError(RuntimeError error) {
+        System.err.println("[line " + error.token.line + "] " + error.getMessage());
+        hadRuntimeError = true;
     }
 
     // Report at the given line and where the error occurred.
