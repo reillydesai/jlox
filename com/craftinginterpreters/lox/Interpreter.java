@@ -33,6 +33,21 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return expr.value;
     }
 
+    // Logical expressions evaluate the left side, then check the operator to determine if we can short-circuit, else evaluate right to determine the result
+    @Override
+    public Object visitLogicalExpr(Expr.Logical expr) {
+        Object left = evaluate(expr.left);
+
+        if (expr.operator.type == TokenType.OR) {
+            if (isTruthy(left)) return left; // might be better to return the thruthiness instead of the value??
+        } else {
+            if (!isTruthy(left)) return left;
+        }
+
+        return evaluate(expr.right);
+        // "Instead of promising to literally return true or false, a logic operator merely guarantees it will return a value with appropriate truthiness."
+    }
+
     // Recursively evalute the expression inside the grouping
     @Override
     public Object visitGroupingExpr(Expr.Grouping expr) {
@@ -139,6 +154,18 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return null;
     }
 
+    // if statement evaluates the condition and executes the then branch if true, else executes the else branch if it exists
+    @Override
+    public Void visitIfStmt(Stmt.If stmt) {
+        if (isTruthy(evaluate(stmt.condition))) {
+            execute(stmt.thenBranch);
+        } else if (stmt.elseBranch != null) {
+            execute(stmt.elseBranch);
+        }
+        return null;
+    }
+
+
     // for print statements, evaluate the expression and print the result
     @Override
     public Void visitPrintStmt(Stmt.Print stmt) {
@@ -156,6 +183,16 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         }
 
         environment.define(stmt.name.lexeme, value);
+        return null;
+    }
+
+
+    // While statements behave exactly as in Java
+    @Override
+    public Void visitWhileStmt(Stmt.While stmt) {
+        while (isTruthy(evaluate(stmt.condition))) {
+            execute(stmt.body);
+        }
         return null;
     }
 
